@@ -36,9 +36,9 @@ class net_client {
     net_client(const net_client&) = delete;
     net_client& operator=(const net_client&) = delete;
 
-    int connect(const char* ip, unsigned short port);
-    int send(const net_payload* data, int flags = 0);
-    int read(net_payload* buffer);
+    int connect(const char* ip, unsigned short port, bool throws = false);
+    int send(const net_payload* data, int flags = 0, bool throws = false);
+    int read(net_payload* buffer, bool throws = false);
 };
 
 class net_connection {
@@ -49,8 +49,8 @@ class net_connection {
     explicit net_connection();
     ~net_connection();
 
-    int send(const net_payload* data, int flags = 0);
-    int read(net_payload* buffer);
+    int send(const net_payload* data, int flags = 0, bool throws = false);
+    int read(net_payload* buffer, bool throws = false);
 };
 
 class net_server {
@@ -67,6 +67,6 @@ class net_server {
     net_server(const net_server&) = delete;
     net_server& operator=(const net_server&) = delete;
 
-    int listen(unsigned short port, int max_requests);
-    int accept(net_connection* buffer);
+    int listen(unsigned short port, int max_requests, bool throws = false);
+    int accept(net_connection* buffer, bool throws = false);
 };

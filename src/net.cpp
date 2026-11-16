@@ -39,8 +39,9 @@ net_client::net_client(net_enum type, int protocol) {
 
 net_client::~net_client() { close(info->sock); }
 
-int net_client::connect(const char* ip, unsigned short port) {
+int net_client::connect(const char* ip, unsigned short port, bool throws) {
     if (connected) {
+        if (throws) throw std::runtime_error("Client already connected");
         error = "Client already connected";
         return NET_FAIL;
     }
@@ -49,11 +50,13 @@ int net_client::connect(const char* ip, unsigned short port) {
     info->serverAddr.sin_port = htons(port);
 
     if (inet_pton(AF_INET, ip, &info->serverAddr.sin_addr) <= 0) {
+        if (throws) throw std::runtime_error("Invalid or unsupported ip");
         error = "Invalid or unsupported ip";
         return NET_FAIL;
     }
 
     if (::connect(info->sock, reinterpret_cast<sockaddr*>(&info->serverAddr), sizeof(info->serverAddr)) < 0) {
+        if (throws) throw std::runtime_error("Failed to connect to server");
         error = "Failed to connect to server";
         return NET_FAIL;
     }
@@ -62,8 +65,9 @@ int net_client::connect(const char* ip, unsigned short port) {
     return NET_SUCCESS;
 }
 
-int net_client::send(const net_payload* payload, int flags) {
+int net_client::send(const net_payload* payload, int flags, bool throws) {
     if (!connected) {
+        if (throws) throw std::runtime_error("Not connected");
         error = "Not connected";
         return NET_FAIL;
     }
@@ -71,6 +75,7 @@ int net_client::send(const net_payload* payload, int flags) {
     ssize_t sent_now;
     while (sent < sizeof(payload->size)) {
         if ((sent_now = ::send(info->sock, ((char*)&payload->size) + sent, sizeof(payload->size) - sent, flags | MSG_NOSIGNAL)) <= 0) {
+            if (throws) throw std::runtime_error("Failed to send data");
             error = "Failed to send data";
             return NET_FAIL;
         }
@@ -79,6 +84,7 @@ int net_client::send(const net_payload* payload, int flags) {
     sent = 0;
     while (sent < payload->size) {
         if ((sent_now = ::send(info->sock, payload->data.data() + sent, payload->size - sent, flags | MSG_NOSIGNAL)) <= 0) {
+            if (throws) throw std::runtime_error("Failed to send data");
             error = "Failed to send data";
             return NET_FAIL;
         }
@@ -88,8 +94,9 @@ int net_client::send(const net_payload* payload, int flags) {
     return NET_SUCCESS;
 }
 
-int net_client::read(net_payload* buffer) {
+int net_client::read(net_payload* buffer, bool throws) {
     if (!connected) {
+        if (throws) throw std::runtime_error("Not connected");
         error = "Not connected";
         return NET_FAIL;
     }
@@ -98,10 +105,12 @@ int net_client::read(net_payload* buffer) {
     ssize_t red_now;
     while (red < sizeof(uint64_t)) {
         if ((red_now = ::recv(info->sock, size_buf + red, sizeof(uint64_t) - red, 0)) < 0) {
+            if (throws) throw std::runtime_error("Read failed");
             error = "Read failed";
             return NET_FAIL;
         }
         if (red_now == 0) {
+            if (throws) throw std::runtime_error("Lost connection");
             error = "Lost connection";
             return NET_FAIL;
         }
@@ -112,10 +121,12 @@ int net_client::read(net_payload* buffer) {
     buffer->data.resize(size);
     while (red < size) {
         if ((red_now = ::recv(info->sock, buffer->data.data() + red, size - red, 0)) < 0) {
+            if (throws) throw std::runtime_error("Read failed");
             error = "Read failed";
             return NET_FAIL;
         }
         if (red_now == 0) {
+            if (throws) throw std::runtime_error("Lost connection");
             error = "Lost connection";
             return NET_FAIL;
         }
@@ -128,11 +139,12 @@ int net_client::read(net_payload* buffer) {
 net_connection::net_connection() {}
 net_connection::~net_connection() { close(sock); }
 
-int net_connection::send(const net_payload* payload, int flags) {
+int net_connection::send(const net_payload* payload, int flags, bool throws) {
     uint64_t sent = 0;
     ssize_t sent_now;
     while (sent < sizeof(payload->size)) {
         if ((sent_now = ::send(sock, ((char*)&payload->size) + sent, sizeof(payload->size) - sent, flags | MSG_NOSIGNAL)) <= 0) {
+            if (throws) throw std::runtime_error("Failed to send data");
             error = "Failed to send data";
             return NET_FAIL;
         }
@@ -141,6 +153,7 @@ int net_connection::send(const net_payload* payload, int flags) {
     sent = 0;
     while (sent < payload->size) {
         if ((sent_now = ::send(sock, payload->data.data() + sent, payload->size - sent, flags | MSG_NOSIGNAL)) <= 0) {
+            if (throws) throw std::runtime_error("Failed to send data");
             error = "Failed to send data";
             return NET_FAIL;
         }
@@ -150,16 +163,18 @@ int net_connection::send(const net_payload* payload, int flags) {
     return NET_SUCCESS;
 }
 
-int net_connection::read(net_payload *buffer) {
+int net_connection::read(net_payload *buffer, bool throws) {
     char size_buf[sizeof(uint64_t)];
     uint64_t red = 0;
     ssize_t red_now;
     while (red < sizeof(uint64_t)) {
         if ((red_now = ::recv(sock, size_buf + red, sizeof(uint64_t) - red, 0)) < 0) {
+            if (throws) throw std::runtime_error("Read failed");
             error = "Read failed";
             return NET_FAIL;
         }
         if (red_now == 0) {
+            if (throws) throw std::runtime_error("Lost connection");
             error = "Lost connection";
             return NET_FAIL;
         }
@@ -170,10 +185,12 @@ int net_connection::read(net_payload *buffer) {
     buffer->data.resize(size);
     while (red < size) {
         if ((red_now = ::recv(sock, buffer->data.data() + red, size - red, 0)) < 0) {
+            if (throws) throw std::runtime_error("Read failed");
             error = "Read failed";
             return NET_FAIL;
         }
         if (red_now == 0) {
+            if (throws) throw std::runtime_error("Lost connection");
             error = "Lost connection";
             return NET_FAIL;
         }
@@ -206,17 +223,19 @@ net_server::net_server(net_enum type, int protocol) {
 
 net_server::~net_server() { close(info->sock); }
 
-int net_server::listen(unsigned short port, int max_requests) {
+int net_server::listen(unsigned short port, int max_requests, bool throws) {
     info->addr = {};
     info->addr.sin_addr.s_addr = INADDR_ANY;
     info->addr.sin_family = AF_INET;
     info->addr.sin_port = htons(port);
 
     if (bind(info->sock, (sockaddr*)&info->addr, sizeof(info->addr)) < 0) {
+        if (throws) throw std::runtime_error("Bind failed");
         error = "Bind failed";
         return NET_FAIL;
     }
     if (::listen(info->sock, max_requests) < 0) {
+        if (throws) throw std::runtime_error("Listen failed");
         error = "Listen failed";
         return NET_FAIL; 
     }
@@ -224,9 +243,10 @@ int net_server::listen(unsigned short port, int max_requests) {
     return NET_SUCCESS;
 }
 
-int net_server::accept(net_connection *buffer) {
+int net_server::accept(net_connection *buffer, bool throws) {
     buffer->sock = ::accept(info->sock, nullptr, nullptr);
     if (buffer->sock < 0) {
+        if (throws) throw std::runtime_error("Accept failed");
         error = "Accept failed";
         return NET_FAIL;
     }
