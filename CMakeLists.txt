@@ -11,4 +11,5 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(BUILD_SHARED_LIBS ON)
 endif()
 
-add_executable(server src/server/main.cpp)
+add_executable(server src/server/main.cpp src/net.cpp)
+add_executable(linux_client src/client/linux/main.cpp src/net.cpp)
